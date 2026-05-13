@@ -1,0 +1,37 @@
+[package]
+name = "ime_shift_fix"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Protect IME mode while selecting text with Shift+Click on Windows."
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+categories = ["command-line-utilities", "os::windows-apis"]
+keywords = ["cli", "windows", "ime", "daemon", "service"]
+
+[dependencies]
+ctrlc = "3.4"
+windows = { version = "0.61.3", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_System_Environment",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Registry",
+    "Win32_System_RemoteDesktop",
+    "Win32_System_Services",
+    "Win32_System_Threading",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+debug = false
+incremental = false
+debug-assertions = false
+overflow-checks = false
