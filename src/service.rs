@@ -293,7 +293,7 @@ unsafe fn launch_user_agent_process() -> Result<HandleGuard> {
     let mut exe_w = to_wide(&exe_path);
     let mut command_line = to_wide(&format!("\"{exe_path}\" --user"));
     let mut desktop = to_wide("winsta0\\default");
-    let mut startup = STARTUPINFOW {
+    let startup = STARTUPINFOW {
         cb: size_of::<STARTUPINFOW>() as u32,
         lpDesktop: PWSTR(desktop.as_mut_ptr()),
         dwFlags: STARTF_USESHOWWINDOW,
@@ -313,7 +313,7 @@ unsafe fn launch_user_agent_process() -> Result<HandleGuard> {
             CREATE_UNICODE_ENVIRONMENT | CREATE_NO_WINDOW,
             Some(environment.0),
             PCWSTR::null(),
-            &mut startup,
+            &startup,
             &mut process_info,
         )?;
     }
