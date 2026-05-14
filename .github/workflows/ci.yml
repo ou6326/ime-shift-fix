@@ -16,7 +16,7 @@ jobs:
     name: Test, Format, Clippy, Build, Publish
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -50,8 +50,12 @@ jobs:
       - name: Get crate name from Cargo.toml
         id: bin_name
         run: |
-          BIN_NAME=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].targets[] | select(.kind[] == "bin") | .name' | head -n 1)
-          echo "bin_name=$BIN_NAME" >> $GITHUB_OUTPUT
+          $BIN_NAME = cargo metadata --no-deps --format-version 1 |
+          ConvertFrom-Json |
+          ForEach-Object { $_.packages[0].targets |
+            Where-Object { $_.kind -contains 'bin' } |
+            Select-Object -First 1 -ExpandProperty name }
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "bin_name=$BIN_NAME"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
