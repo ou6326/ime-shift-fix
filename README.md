@@ -3,7 +3,6 @@
 [![Crates.io](https://img.shields.io/crates/v/ime_shift_fix.svg)](https://crates.io/crates/ime_shift_fix)
 [![Docs.rs](https://docs.rs/ime_shift_fix/badge.svg)](https://docs.rs/ime_shift_fix)
 [![CI](https://github.com/ou6326/ime-shift-fix/actions/workflows/ci.yml/badge.svg)](https://github.com/ou6326/ime-shift-fix/actions/workflows/ci.yml)
-[![Coverage](https://codecov.io/gh/ou6326/ime-shift-fix/branch/main/graph/badge.svg)](https://codecov.io/gh/ou6326/ime-shift-fix)
 [![License](https://img.shields.io/crates/l/ime_shift_fix.svg)](https://github.com/ou6326/ime-shift-fix#license)
 
 Windows utility that protects IME mode while selecting text with `Shift+Click`.
@@ -15,25 +14,25 @@ The foreground mode installs low-level keyboard and mouse hooks in the current u
 Run in the current terminal:
 
 ```powershell
-ime_shift_fix.exe
+ime-shift-fix.exe
 ```
 
 Install as a Windows service:
 
 ```powershell
-ime_shift_fix.exe --install
+ime-shift-fix.exe --install
 ```
 
 Uninstall the service:
 
 ```powershell
-ime_shift_fix.exe --uninstall
+ime-shift-fix.exe --uninstall
 ```
 
 Show help:
 
 ```powershell
-ime_shift_fix.exe --help
+ime-shift-fix.exe --help
 ```
 
 ## Service Mode
@@ -50,9 +49,22 @@ Internal options:
 These are implementation details and are not needed for normal manual use.
 
 ## Build
+### Prerequisites
 
+For the `x86_64-pc-windows-msvc` target, build from an MSVC developer environment:
+
+- Open "Developer PowerShell for VS 2022", or run `VsDevCmd.bat` or `vcvarsall.bat x64` before building.
+
+### Building
 ```powershell
 cargo build --release
 ```
 
-The release binary is written to `target\release\ime_shift_fix.exe`.
+The release binary is written to `target\release\ime-shift-fix.exe`.
+
+## License
+
+This project is licensed under either of the following, at your option:
+
+- Apache License, Version 2.0
+- MIT License

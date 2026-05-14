@@ -88,7 +88,7 @@ unsafe fn inject_shift_keyup(vk_code: u32) {
     };
     let sent = unsafe { SendInput(&[input], size_of::<INPUT>() as i32) };
     if sent == 0 {
-        log_win32_error("SendInput", &Error::from_win32());
+        log_win32_error("SendInput", &Error::from_thread());
     }
 }
 
@@ -164,13 +164,13 @@ pub fn run(register_ctrlc: bool) -> Result<()> {
 
         let keyboard_hook = SetWindowsHookExA(WH_KEYBOARD_LL, Some(keyboard_proc), h_instance, 0)?;
         if keyboard_hook.0.is_null() {
-            return Err(Error::from_win32());
+            return Err(Error::from_thread());
         }
         let _keyboard_guard = HookGuard(keyboard_hook);
 
         let mouse_hook = SetWindowsHookExA(WH_MOUSE_LL, Some(mouse_proc), h_instance, 0)?;
         if mouse_hook.0.is_null() {
-            return Err(Error::from_win32());
+            return Err(Error::from_thread());
         }
         let _mouse_guard = HookGuard(mouse_hook);
 
@@ -190,7 +190,7 @@ pub fn run(register_ctrlc: bool) -> Result<()> {
         loop {
             let ret = GetMessageA(&mut msg, Some(HWND::default()), 0, 0).0;
             match ret {
-                -1 => return Err(Error::from_win32()),
+                -1 => return Err(Error::from_thread()),
                 0 => break,
                 _ => {
                     let _ = TranslateMessage(&msg);

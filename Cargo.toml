@@ -19,9 +19,12 @@ targets = ["x86_64-pc-windows-msvc"]
 name = "ime-shift-fix"
 path = "src/main.rs"
 
+[target.'cfg(windows)'.build-dependencies]
+winresource = "0.1"
+
 [dependencies]
-ctrlc = "3.4"
-windows = { version = "0.61.3", features = [
+ctrlc = "3.5"
+windows = { version = "0.62", features = [
     "Win32_Foundation",
     "Win32_Security",
     "Win32_System_Environment",
