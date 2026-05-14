@@ -6,8 +6,18 @@ rust-version = "1.85"
 description = "Protect IME mode while selecting text with Shift+Click on Windows."
 license = "MIT OR Apache-2.0"
 readme = "README.md"
+repository = "https://github.com/ou6326/ime-shift-fix"
+documentation = "https://docs.rs/ime_shift_fix"
 categories = ["command-line-utilities", "os::windows-apis"]
 keywords = ["cli", "windows", "ime", "daemon", "service"]
+
+[package.metadata.docs.rs]
+default-target = "x86_64-pc-windows-msvc"
+targets = ["x86_64-pc-windows-msvc"]
+
+[[bin]]
+name = "ime-shift-fix"
+path = "src/main.rs"
 
 [dependencies]
 ctrlc = "3.4"

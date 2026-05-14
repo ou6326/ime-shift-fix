@@ -1,5 +1,11 @@
 # IME Shift Fix
 
+[![Crates.io](https://img.shields.io/crates/v/ime_shift_fix.svg)](https://crates.io/crates/ime_shift_fix)
+[![Docs.rs](https://docs.rs/ime_shift_fix/badge.svg)](https://docs.rs/ime_shift_fix)
+[![CI](https://github.com/ou6326/ime-shift-fix/actions/workflows/ci.yml/badge.svg)](https://github.com/ou6326/ime-shift-fix/actions/workflows/ci.yml)
+[![Coverage](https://codecov.io/gh/ou6326/ime-shift-fix/branch/main/graph/badge.svg)](https://codecov.io/gh/ou6326/ime-shift-fix)
+[![License](https://img.shields.io/crates/l/ime_shift_fix.svg)](https://github.com/ou6326/ime-shift-fix#license)
+
 Windows utility that protects IME mode while selecting text with `Shift+Click`.
 
 The foreground mode installs low-level keyboard and mouse hooks in the current user session. When a Shift key-up follows a Shift+left-click selection, the tool suppresses that key-up and posts/injects a replacement key-up so the target app does not toggle IME mode unexpectedly.
