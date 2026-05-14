@@ -9,8 +9,7 @@ use windows::{
         Foundation::{CloseHandle, E_FAIL, HANDLE},
         Security::{GetTokenInformation, TOKEN_ELEVATION, TOKEN_QUERY, TokenElevation},
         System::Threading::{
-            GetCurrentProcess, GetExitCodeProcess, INFINITE, OpenProcessToken,
-            WaitForSingleObject,
+            GetCurrentProcess, GetExitCodeProcess, INFINITE, OpenProcessToken, WaitForSingleObject,
         },
         UI::{
             Shell::{SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW, ShellExecuteExW},
@@ -108,21 +107,37 @@ fn report_elevated_service_result(arg: &str, exit_code: u32) {
     };
 
     match (arg, installed, exit_code) {
-        ("--install", true, 0) => println!("Install completed: service {} is installed.", service::DISPLAY_NAME),
+        ("--install", true, 0) => println!(
+            "Install completed: service {} is installed.",
+            service::DISPLAY_NAME
+        ),
         ("--install", true, _) => {
-            eprintln!("Install finished with exit code {exit_code}, but service {} is installed.", service::DISPLAY_NAME)
+            eprintln!(
+                "Install finished with exit code {exit_code}, but service {} is installed.",
+                service::DISPLAY_NAME
+            )
         }
         ("--install", false, _) => {
-            eprintln!("Install did not complete: service {} is not installed. Exit code: {exit_code}.", service::DISPLAY_NAME)
+            eprintln!(
+                "Install did not complete: service {} is not installed. Exit code: {exit_code}.",
+                service::DISPLAY_NAME
+            )
         }
-        ("--uninstall", false, 0) => println!("Uninstall completed: service {} has been uninstalled.", service::DISPLAY_NAME),
+        ("--uninstall", false, 0) => println!(
+            "Uninstall completed: service {} has been uninstalled.",
+            service::DISPLAY_NAME
+        ),
         ("--uninstall", false, _) => {
             eprintln!(
-                "Uninstall finished with exit code {exit_code}, and service {} is not installed.", service::DISPLAY_NAME
+                "Uninstall finished with exit code {exit_code}, and service {} is not installed.",
+                service::DISPLAY_NAME
             )
         }
         ("--uninstall", true, _) => {
-            eprintln!("Uninstall did not complete: service {} still exists. Exit code: {exit_code}.", service::DISPLAY_NAME)
+            eprintln!(
+                "Uninstall did not complete: service {} still exists. Exit code: {exit_code}.",
+                service::DISPLAY_NAME
+            )
         }
         _ => println!("Elevated {arg} finished. Exit code: {exit_code}."),
     }
