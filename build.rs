@@ -4,11 +4,9 @@ use std::env;
 fn main() {
     let mut resource = winresource::WindowsResource::new();
 
-    if env::var("CARGO_CFG_TARGET_ENV").unwrap() == "msvc" {
-        if which::which("rc.exe").is_ok() {
-            unsafe {
-                env::set_var("RC_PATH", "rc.exe");
-            }
+    if env::var("CARGO_CFG_TARGET_ENV").unwrap() == "msvc" && which::which("rc.exe").is_ok() {
+        unsafe {
+            env::set_var("RC_PATH", "rc.exe");
         }
     }
 

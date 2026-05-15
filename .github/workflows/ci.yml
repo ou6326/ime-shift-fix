@@ -13,7 +13,7 @@ env:
 
 jobs:
   ci:
-    name: Test, Format, Clippy, Build, Publish
+    name: Format, Clippy, Build, Publish
     runs-on: windows-latest
     permissions:
       contents: write
