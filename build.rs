@@ -1,8 +1,16 @@
 use std::env;
 
-#[cfg(windows)]
+#[cfg(target_os = "windows")]
 fn main() {
     let mut resource = winresource::WindowsResource::new();
+
+    if env::var("CARGO_CFG_TARGET_ENV").unwrap() == "msvc" {
+        if which::which("rc.exe").is_ok() {
+            unsafe {
+                env::set_var("RC_PATH", "rc.exe");
+            }
+        }
+    }
 
     let binary_name = env::var("CARGO_BIN_NAME").unwrap_or_else(|_| "ime-shift-fix".into());
     let product_name = title_case_identifier(&binary_name)
@@ -25,7 +33,7 @@ fn main() {
         .expect("failed to compile Windows resources");
 }
 
-#[cfg(windows)]
+#[cfg(target_os = "windows")]
 fn title_case_identifier(value: &str) -> Option<String> {
     let words = value
         .split(['-', '_'])
