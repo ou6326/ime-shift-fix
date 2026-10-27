@@ -1,5 +1,6 @@
 mod hook;
 mod service;
+mod shift_state;
 
 use std::mem::size_of;
 use std::{env, process};
@@ -33,7 +34,7 @@ impl Drop for HandleGuard {
 
 fn print_help(program: &str) {
     println!(
-        "Usage: {program} [OPTION]\n\nOptions:\n  --install       Install and start the Windows service\n  --uninstall     Stop and uninstall the Windows service\n  --service       Run as a Windows service (used by SCM)\n  -h, --help      Show this help\n\nWithout options, runs in the foreground."
+        "Usage: {program} [OPTION]\n\nOptions:\n  --install       Install and start the Windows service\n  --uninstall     Stop and uninstall the Windows service\n  --service       Run as a Windows service (used by SCM)\n  --compensation both|post|inject\n                  Foreground experiment (default: both)\n  -h, --help      Show this help\n\nWithout options, runs in the foreground."
     );
 }
 
@@ -183,7 +184,15 @@ fn run_cli() -> Result<()> {
     let rest: Vec<&str> = rest.iter().map(String::as_str).collect();
 
     match rest.as_slice() {
-        [] => hook::run(true),
+        [] => hook::run(true, hook::Compensation::Both),
+        ["--compensation", mode @ ("both" | "post" | "inject")] => {
+            let mode = match *mode {
+                "post" => hook::Compensation::Post,
+                "inject" => hook::Compensation::Inject,
+                _ => hook::Compensation::Both,
+            };
+            hook::run(true, mode)
+        }
         ["-h" | "--help"] => {
             print_help(&program);
             Ok(())
@@ -201,7 +210,7 @@ fn run_cli() -> Result<()> {
             service::uninstall()
         }
         ["--service"] => service::run(),
-        ["--user"] => hook::run(false),
+        ["--user"] => hook::run(false, hook::Compensation::Both),
         _ => {
             eprintln!("Unknown or invalid arguments.\n");
             print_help(&program);

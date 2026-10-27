@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 
 use windows::{
     Win32::{
-        Foundation::{CloseHandle, E_FAIL, HANDLE, WAIT_OBJECT_0},
+        Foundation::{CloseHandle, E_FAIL, HANDLE, WAIT_FAILED, WAIT_OBJECT_0},
         System::{
             Environment::{CreateEnvironmentBlock, DestroyEnvironmentBlock},
             RemoteDesktop::{WTSGetActiveConsoleSessionId, WTSQueryUserToken},
@@ -44,7 +44,6 @@ const ERROR_SERVICE_NOT_ACTIVE: u32 = 1062;
 const SERVICE_STATE_TIMEOUT: Duration = Duration::from_secs(15);
 
 static STATUS_HANDLE_RAW: AtomicIsize = AtomicIsize::new(0);
-static USER_AGENT_PROCESS_HANDLE_RAW: AtomicIsize = AtomicIsize::new(0);
 static STOP_REQUESTED: AtomicBool = AtomicBool::new(false);
 
 struct ServiceHandle(SC_HANDLE);
@@ -273,12 +272,7 @@ pub fn uninstall() -> Result<()> {
     Ok(())
 }
 
-unsafe fn launch_user_agent_process() -> Result<HandleGuard> {
-    let session_id = unsafe { WTSGetActiveConsoleSessionId() };
-    if session_id == u32::MAX {
-        return Err(Error::new(E_FAIL, "No active console session"));
-    }
-
+unsafe fn launch_user_agent_process(session_id: u32) -> Result<HandleGuard> {
     let mut token = HANDLE::default();
     unsafe { WTSQueryUserToken(session_id, &mut token)? };
     let token = HandleGuard(token);
@@ -375,14 +369,20 @@ unsafe extern "system" fn service_ctrl_handler(
     if control == SERVICE_CONTROL_STOP {
         unsafe { report_status(SERVICE_STOP_PENDING, 0) };
         STOP_REQUESTED.store(true, Ordering::SeqCst);
-        let process_handle = USER_AGENT_PROCESS_HANDLE_RAW.load(Ordering::SeqCst);
-        if process_handle != 0 {
-            if let Err(err) = unsafe { TerminateProcess(HANDLE(process_handle as *mut _), 0) } {
-                log_win32_error("TerminateProcess(user)", &err);
-            }
-        }
     }
     0
+}
+
+unsafe fn terminate_agent(process: HANDLE) -> Result<()> {
+    if unsafe { WaitForSingleObject(process, 0) } == WAIT_OBJECT_0 {
+        return Ok(());
+    }
+    unsafe { TerminateProcess(process, 0)? };
+    match unsafe { WaitForSingleObject(process, 1000) } {
+        WAIT_OBJECT_0 => Ok(()),
+        WAIT_FAILED => Err(Error::from_thread()),
+        _ => Err(Error::new(E_FAIL, "User agent did not terminate in time")),
+    }
 }
 
 unsafe extern "system" fn service_main(_argc: u32, _argv: *mut PWSTR) {
@@ -395,24 +395,95 @@ unsafe extern "system" fn service_main(_argc: u32, _argv: *mut PWSTR) {
     STOP_REQUESTED.store(false, Ordering::SeqCst);
     unsafe { report_status(SERVICE_START_PENDING, 0) };
 
-    let result = unsafe { launch_user_agent_process() };
-    let user_agent_process = match result {
-        Ok(user_agent_process) => user_agent_process,
-        Err(err) => {
-            log_win32_error("launch_user_agent_process", &err);
-            unsafe { report_status(SERVICE_STOPPED, 1) };
-            return;
-        }
-    };
-    USER_AGENT_PROCESS_HANDLE_RAW.store(user_agent_process.0.0 as isize, Ordering::SeqCst);
+    // RUNNING means the supervisor is ready, including while waiting for login.
+    // Only this thread owns process handles; the control callback only signals stop.
+    let mut agent: Option<(u32, HandleGuard)> = None;
+    let mut exit_code = 0;
     unsafe { report_status(SERVICE_RUNNING, 0) };
 
     while !STOP_REQUESTED.load(Ordering::SeqCst) {
-        if unsafe { WaitForSingleObject(user_agent_process.0, 1000) } == WAIT_OBJECT_0 {
-            break;
+        let session = unsafe { WTSGetActiveConsoleSessionId() };
+        if let Some((agent_session, process)) = agent.as_ref() {
+            let status = unsafe { WaitForSingleObject(process.0, 0) };
+            if status == WAIT_FAILED {
+                log_win32_error("WaitForSingleObject(user)", &Error::from_thread());
+                exit_code = 1;
+                break;
+            }
+            if replace_agent(session, *agent_session, status == WAIT_OBJECT_0) {
+                if status != WAIT_OBJECT_0 {
+                    if let Err(err) = unsafe { terminate_agent(process.0) } {
+                        log_win32_error("TerminateProcess(user)", &err);
+                        exit_code = 1;
+                        break;
+                    }
+                }
+                agent = None;
+            }
         }
+        if agent.is_none() && session != u32::MAX && !STOP_REQUESTED.load(Ordering::SeqCst) {
+            match unsafe { launch_user_agent_process(session) } {
+                Ok(process) => agent = Some((session, process)),
+                // A console session can exist before a user token is available.
+                // Retry after login instead of permanently stopping the service.
+                Err(err) => log_win32_error("launch_user_agent_process (will retry)", &err),
+            }
+        }
+        thread::sleep(Duration::from_secs(1));
     }
 
-    USER_AGENT_PROCESS_HANDLE_RAW.store(0, Ordering::SeqCst);
-    unsafe { report_status(SERVICE_STOPPED, 0) };
+    if let Some((_, process)) = agent {
+        if let Err(err) = unsafe { terminate_agent(process.0) } {
+            log_win32_error("TerminateProcess(user)", &err);
+            exit_code = 1;
+        }
+    }
+    unsafe { report_status(SERVICE_STOPPED, exit_code) };
+}
+
+fn replace_agent(active_session: u32, agent_session: u32, exited: bool) -> bool {
+    exited || active_session != agent_session
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn agent_termination_waits_for_exit() {
+        use std::os::windows::{io::AsRawHandle, process::CommandExt};
+        use std::process::Command;
+
+        // The child runs only this test as a harmless stand-in for the agent.
+        if env::var_os("IME_SHIFT_FIX_TEST_AGENT").is_some() {
+            thread::sleep(Duration::from_secs(10));
+            return;
+        }
+        let mut child = Command::new(env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "service::tests::agent_termination_waits_for_exit",
+            ])
+            .env("IME_SHIFT_FIX_TEST_AGENT", "1")
+            .creation_flags(CREATE_NO_WINDOW.0)
+            .spawn()
+            .unwrap();
+        let handle = HANDLE(child.as_raw_handle());
+        let result = unsafe { terminate_agent(handle) };
+        if result.is_err() {
+            let _ = child.kill();
+        }
+        child.wait().unwrap();
+        result.unwrap();
+        // An already exited agent must also be safe to clean up.
+        unsafe { terminate_agent(handle) }.unwrap();
+    }
+
+    #[test]
+    fn console_agent_is_replaced_on_exit_or_session_change() {
+        assert!(!replace_agent(1, 1, false));
+        assert!(replace_agent(1, 1, true));
+        assert!(replace_agent(2, 1, false));
+        assert!(replace_agent(u32::MAX, 1, false));
+    }
 }
