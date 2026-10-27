@@ -1,84 +1,86 @@
 name: CI
-
 on:
   push:
-    branches: [ main, develop ]
-    tags: [ 'v*' ]
+    branches: [main, develop]
+    tags: ['v*']
   pull_request:
-    branches: [ main, develop ]
-
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
-
 jobs:
-  ci:
-    name: Format, Clippy, Build, Publish
-    runs-on: windows-latest
-    permissions:
-      contents: write
+  lint:
+    name: Static quality gate
+    runs-on: windows-2025
     steps:
-      - uses: actions/checkout@v6
-
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           components: rustfmt, clippy
-
-      - uses: TheMrMilchmann/setup-msvc-dev@v4
-        with:
-          arch: x64
-
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Run formatting
-        run: cargo fmt --all
-
-      - name: Run clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
-
-      - name: Build release
-        run: cargo build --release --verbose
-
-      - name: Build documentation
-        run: cargo doc --no-deps --document-private-items
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+      - name: Clippy
+        run: cargo clippy --locked --all-targets --all-features -- -D warnings
+      - name: Documentation
+        run: cargo doc --locked --no-deps --document-private-items
         env:
           RUSTDOCFLAGS: -D warnings
-
-      - name: Package crate
-        run: cargo package --locked --verbose
-
-      - name: Publish dry run
-        run: cargo publish --dry-run --locked
-
-      - name: Get crate name from Cargo.toml
-        id: bin_name
-        run: |
-          $BIN_NAME = cargo metadata --no-deps --format-version 1 |
-          ConvertFrom-Json |
-          ForEach-Object { $_.packages[0].targets |
-            Where-Object { $_.kind -contains 'bin' } |
-            Select-Object -First 1 -ExpandProperty name }
-          Add-Content -Path $env:GITHUB_OUTPUT -Value "bin_name=$BIN_NAME"
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+  test:
+    name: Windows x64 Rust ${{ matrix.toolchain }}
+    runs-on: windows-2025
+    needs: lint
+    strategy:
+      fail-fast: false
+      matrix:
+        toolchain: [stable, '1.85.0']
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
-          name: ${{ steps.bin_name.outputs.bin_name }}-release
-          path: target/release/${{ steps.bin_name.outputs.bin_name }}.exe
-
-      - name: Create GitHub release
-        if: startsWith(github.ref, 'refs/tags/v')
+          toolchain: ${{ matrix.toolchain }}
+      - name: Test event sequences
+        run: cargo test --locked --all-targets --all-features
+  package:
+    name: Build and verify crate
+    runs-on: windows-2025
+    needs: lint
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - name: Build release
+        run: cargo build --locked --release
+      - name: Smoke test CLI
+        shell: pwsh
         run: |
-          gh release create "${{ github.ref_name }}" `
-            "target/release/${{ steps.bin_name.outputs.bin_name }}.exe" `
-            --title "${{ github.ref_name }}" `
-            --generate-notes `
-            --verify-tag
+          $help = & ./target/release/ime-shift-fix.exe --help
+          if ($LASTEXITCODE -ne 0 -or "$help" -notmatch 'Usage:') { throw 'Help smoke test failed' }
+          & ./target/release/ime-shift-fix.exe --invalid-option
+          if ($LASTEXITCODE -ne 2) { throw 'Invalid arguments must exit with code 2' }
+          exit 0
+      - name: Package and verify crate
+        run: cargo package --locked
+  coverage:
+    name: Windows coverage
+    needs: lint
+    uses: ./.github/workflows/coverage.yml
+  ci-success:
+    name: All checks passed
+    runs-on: ubuntu-24.04
+    if: always()
+    needs: [lint, test, package, coverage]
+    steps:
+      - name: Verify all upstream jobs succeeded
         env:
-          GH_TOKEN: ${{ github.token }}
-
-      - name: Publish to crates.io
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: cargo publish --locked
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_TOKEN }}
+          JOB_RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          for result in $JOB_RESULTS; do
+            if [ "$result" != "success" ]; then
+              echo "One or more CI jobs did not succeed: $JOB_RESULTS"
+              exit 1
+            fi
+          done
