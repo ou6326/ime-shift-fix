@@ -1,7 +1,6 @@
 # IME Shift Fix
 
 [![Crates.io](https://img.shields.io/crates/v/ime_shift_fix.svg)](https://crates.io/crates/ime_shift_fix)
-[![Docs.rs](https://docs.rs/ime_shift_fix/badge.svg)](https://docs.rs/ime_shift_fix)
 [![CI](https://github.com/ou6326/ime-shift-fix/actions/workflows/ci.yml/badge.svg)](https://github.com/ou6326/ime-shift-fix/actions/workflows/ci.yml)
 [![License](https://img.shields.io/crates/l/ime_shift_fix.svg)](https://github.com/ou6326/ime-shift-fix#license)
 
