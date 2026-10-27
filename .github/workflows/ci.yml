@@ -64,6 +64,12 @@ jobs:
           exit 0
       - name: Package and verify crate
         run: cargo package --locked
+      - name: Upload release executable
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ime-shift-fix-${{ github.ref_name }}
+          path: target/release/ime-shift-fix.exe
   coverage:
     name: Windows coverage
     needs: lint
@@ -84,3 +90,39 @@ jobs:
               exit 1
             fi
           done
+  publish:
+    name: Publish crate
+    runs-on: ubuntu-24.04
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: ci-success
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - name: Publish crate
+        run: cargo publish --locked
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+  release:
+    name: Create GitHub release
+    runs-on: ubuntu-24.04
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [ci-success, package, publish]
+    permissions:
+      contents: write
+    steps:
+      - name: Download release executable
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: ime-shift-fix-${{ github.ref_name }}
+          path: release
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            "release/ime-shift-fix.exe" \
+            --title "${{ github.ref_name }}" \
+            --generate-notes \
+            --verify-tag
