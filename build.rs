@@ -1,3 +1,4 @@
+#[cfg(target_os = "windows")]
 use std::env;
 
 #[cfg(target_os = "windows")]
@@ -30,6 +31,9 @@ fn main() {
         .compile()
         .expect("failed to compile Windows resources");
 }
+
+#[cfg(not(target_os = "windows"))]
+fn main() {}
 
 #[cfg(target_os = "windows")]
 fn title_case_identifier(value: &str) -> Option<String> {
